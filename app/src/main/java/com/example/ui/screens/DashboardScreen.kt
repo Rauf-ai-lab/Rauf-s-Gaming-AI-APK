@@ -359,6 +359,29 @@ fun DashboardScreen(
                                 )
                             }
                         }
+
+                        // Quick "+ ADD APP" chip
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(accent.copy(alpha = 0.15f))
+                                    .border(1.dp, accent.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        viewModel.selectTab(NavigationTab.LIBRARY)
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "+ ADD APP",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = accent,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -393,15 +416,14 @@ fun DashboardScreen(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(accent.copy(alpha = 0.2f))
-                                .border(1.dp, accent, CircleShape),
+                                .border(1.5.dp, accent, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Psychology,
-                                contentDescription = "AI",
-                                tint = accent,
-                                modifier = Modifier.size(24.dp)
+                            Image(
+                                painter = painterResource(id = R.drawable.img_anime_ai_avatar),
+                                contentDescription = "AI Shinobi Avatar",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
                             )
                         }
                         Spacer(modifier = Modifier.width(10.dp))

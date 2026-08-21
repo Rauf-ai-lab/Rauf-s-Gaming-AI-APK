@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.DoNotDisturbOn
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Widgets
@@ -227,14 +228,14 @@ fun FloatingOverlayHud(
                             }
                         )
                         OverlayToolButton(
-                            title = "AI COPILOT",
+                            title = "GAMES",
                             isActive = false,
-                            icon = Icons.Default.Psychology,
+                            icon = Icons.Default.SportsEsports,
                             accentColor = accent,
                             modifier = Modifier.weight(1f),
                             onClick = {
                                 viewModel.toggleFloatingOverlay()
-                                viewModel.selectTab(NavigationTab.AI_ASSISTANT)
+                                viewModel.selectTab(NavigationTab.LIBRARY)
                             }
                         )
                     }

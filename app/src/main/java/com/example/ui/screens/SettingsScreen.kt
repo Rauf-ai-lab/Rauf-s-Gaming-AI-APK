@@ -35,6 +35,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -74,6 +76,8 @@ fun SettingsScreen(
     val currentAccent by viewModel.currentAccent.collectAsState()
     val aiStatus by viewModel.aiStatus.collectAsState()
     val aiStatusDetails by viewModel.aiStatusDetails.collectAsState()
+    val animeEffectsEnabled by viewModel.animeEffectsEnabled.collectAsState()
+    val bgAnimationLevel by viewModel.backgroundAnimationLevel.collectAsState()
     val accent = LocalTurboAccent.current
     val context = LocalContext.current
 
@@ -142,6 +146,63 @@ fun SettingsScreen(
                             ) {
                                 if (isSelected) {
                                     Icon(Icons.Default.CheckCircle, "Selected", tint = Color.Black, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Text(
+                text = "ANIME GAMING VISUALS & EFFECTS",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    color = accent,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp
+                )
+            )
+
+            // Anime Theme Visuals Glass Card
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Ninja Chakra Wallpaper", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
+                            Text("Dynamic anime spirit background", style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 8.5.sp))
+                        }
+                        Switch(
+                            checked = animeEffectsEnabled,
+                            onCheckedChange = { viewModel.toggleAnimeEffects() },
+                            colors = SwitchDefaults.colors(checkedThumbColor = accent, checkedTrackColor = accent.copy(alpha = 0.4f))
+                        )
+                    }
+
+                    if (animeEffectsEnabled) {
+                        Text("Chakra Ember Sparks Animation:", style = MaterialTheme.typography.labelSmall.copy(color = TextMuted, fontSize = 9.sp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("FULL", "LOW", "OFF").forEach { level ->
+                                val isSel = bgAnimationLevel == level
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (isSel) accent else DarkSurfaceElevated)
+                                        .clickable { viewModel.setBackgroundAnimationLevel(level) }
+                                        .padding(vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = level,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = if (isSel) Color.Black else TextPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 9.5.sp
+                                        )
+                                    )
                                 }
                             }
                         }

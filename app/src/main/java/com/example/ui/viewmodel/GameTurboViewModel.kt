@@ -14,7 +14,9 @@ import com.example.data.local.PreferencesManager
 import com.example.data.remote.AiConnectionStatus
 import com.example.data.remote.GeminiRepository
 import com.example.data.repository.GamingRepository
+import com.example.engine.AppItem
 import com.example.engine.HardwareMonitor
+import com.example.engine.InstalledAppsManager
 import com.example.engine.SystemHardwareStats
 import com.example.engine.VoiceAssistantEngine
 import com.example.ui.theme.TurboAccentColor
@@ -156,6 +158,20 @@ class GameTurboViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _voiceEffect = MutableStateFlow("Studio Clear") // Studio Clear, Deep Cyber, Tactical Radio, Mech Robot
     val voiceEffect: StateFlow<String> = _voiceEffect.asStateFlow()
+
+    // Anime Theme Effects
+    private val _animeEffectsEnabled = MutableStateFlow(preferencesManager.animeEffectsEnabled)
+    val animeEffectsEnabled: StateFlow<Boolean> = _animeEffectsEnabled.asStateFlow()
+
+    private val _backgroundAnimationLevel = MutableStateFlow(preferencesManager.backgroundAnimationLevel)
+    val backgroundAnimationLevel: StateFlow<String> = _backgroundAnimationLevel.asStateFlow()
+
+    // Installed Device Apps
+    private val _installedApps = MutableStateFlow<List<AppItem>>(emptyList())
+    val installedApps: StateFlow<List<AppItem>> = _installedApps.asStateFlow()
+
+    private val _isLoadingInstalledApps = MutableStateFlow(false)
+    val isLoadingInstalledApps: StateFlow<Boolean> = _isLoadingInstalledApps.asStateFlow()
 
     // Background job holders
     private var streamingJob: Job? = null
@@ -468,6 +484,72 @@ class GameTurboViewModel(application: Application) : AndroidViewModel(applicatio
     fun setVoiceEffect(effect: String) {
         _voiceEffect.value = effect
         triggerHaptic()
+    }
+
+    fun toggleAnimeEffects() {
+        val next = !_animeEffectsEnabled.value
+        _animeEffectsEnabled.value = next
+        preferencesManager.animeEffectsEnabled = next
+        triggerHaptic()
+    }
+
+    fun setBackgroundAnimationLevel(level: String) {
+        _backgroundAnimationLevel.value = level
+        preferencesManager.backgroundAnimationLevel = level
+        triggerHaptic()
+    }
+
+    fun scanInstalledApps() {
+        viewModelScope.launch {
+            _isLoadingInstalledApps.value = true
+            val apps = kotlinx.coroutines.Dispatchers.IO.let {
+                kotlinx.coroutines.withContext(it) {
+                    InstalledAppsManager.getInstalledApps(context)
+                }
+            }
+            _installedApps.value = apps
+            _isLoadingInstalledApps.value = false
+        }
+    }
+
+    fun addInstalledApp(
+        app: AppItem,
+        targetFps: Int = 90,
+        perfMode: String = "Extreme",
+        genre: String = if (app.isGame) "Gaming App" else "Productivity / Tool"
+    ) {
+        viewModelScope.launch {
+            gamingRepository.saveGameProfile(
+                GameProfile(
+                    name = app.appName,
+                    packageName = app.packageName,
+                    genre = genre,
+                    targetFps = targetFps,
+                    performanceMode = perfMode,
+                    touchSensitivityBoost = if (app.isGame) 92 else 75,
+                    customNotes = if (app.isGame) "Esports Optimized Game Turbo Profile" else "Accelerated App Profile"
+                )
+            )
+            triggerHaptic()
+        }
+    }
+
+    fun updateGameProfile(profile: GameProfile) {
+        viewModelScope.launch {
+            gamingRepository.saveGameProfile(profile)
+            triggerHaptic()
+        }
+    }
+
+    fun launchGameOrApp(profile: GameProfile): Boolean {
+        triggerHaptic()
+        _activeGame.value = profile.name
+        preferencesManager.activeGameTitle = profile.name
+        // Update last played time
+        viewModelScope.launch {
+            gamingRepository.saveGameProfile(profile.copy(lastPlayedTime = System.currentTimeMillis()))
+        }
+        return InstalledAppsManager.launchPackage(context, profile.packageName)
     }
 
     fun addCustomGame(name: String, genre: String, targetFps: Int) {

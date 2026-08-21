@@ -58,6 +58,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.components.ChakraBackgroundLayer
 import com.example.ui.components.FloatingOverlayHud
 import com.example.ui.components.HudBatteryBadge
 import com.example.ui.components.HudFpsBadge
@@ -113,73 +114,82 @@ fun GameTurboMainContainer(viewModel: GameTurboViewModel) {
     val currentTab by viewModel.currentTab.collectAsState()
     val stats by viewModel.hardwareStats.collectAsState()
     val isBoosting by viewModel.isBoosting.collectAsState()
+    val animeEffectsEnabled by viewModel.animeEffectsEnabled.collectAsState()
+    val bgAnimationLevel by viewModel.backgroundAnimationLevel.collectAsState()
     val accent = LocalTurboAccent.current
 
-    Scaffold(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(ObsidianDark),
-        contentWindowInsets = WindowInsets.safeDrawing,
-        containerColor = ObsidianDark
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            Row(modifier = Modifier.fillMaxSize()) {
-                // Left Navigation Rail (Futuristic HyperOS Glass)
-                NavigationRailBar(
-                    currentTab = currentTab,
-                    onSelectTab = { viewModel.selectTab(it) },
-                    accentColor = accent
-                )
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Anime Ninja & Chakra Beast Background Layer
+        ChakraBackgroundLayer(
+            animeEffectsEnabled = animeEffectsEnabled,
+            animationLevel = bgAnimationLevel,
+            modifier = Modifier.fillMaxSize()
+        )
 
-                // Main Content Workspace
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .weight(1f)
-                ) {
-                    // Top Telemetry Header Bar
-                    TopTelemetryHeader(
-                        stats = stats,
-                        isBoosting = isBoosting,
-                        onBoost = { viewModel.triggerQuickBoost() },
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            contentWindowInsets = WindowInsets.safeDrawing,
+            containerColor = Color.Transparent
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    // Left Navigation Rail (Futuristic HyperOS Glass)
+                    NavigationRailBar(
+                        currentTab = currentTab,
+                        onSelectTab = { viewModel.selectTab(it) },
                         accentColor = accent
                     )
 
-                    // Active Tab Screen View
-                    Box(
+                    // Main Content Workspace
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxSize()
                             .weight(1f)
                     ) {
-                        AnimatedContent(
-                            targetState = currentTab,
-                            transitionSpec = { fadeIn() togetherWith fadeOut() },
-                            label = "tab_transition"
-                        ) { tab ->
-                            when (tab) {
-                                NavigationTab.DASHBOARD -> DashboardScreen(viewModel = viewModel)
-                                NavigationTab.PERFORMANCE -> PerformanceScreen(viewModel = viewModel)
-                                NavigationTab.AI_ASSISTANT -> AiAssistantScreen(viewModel = viewModel)
-                                NavigationTab.AI_ANALYZER -> AiGameAnalyzerScreen(viewModel = viewModel)
-                                NavigationTab.NETWORK -> NetworkToolsScreen(viewModel = viewModel)
-                                NavigationTab.TOOLS -> GamingToolsScreen(viewModel = viewModel)
-                                NavigationTab.LIBRARY -> GameLibraryScreen(viewModel = viewModel)
-                                NavigationTab.SETTINGS -> SettingsScreen(viewModel = viewModel)
+                        // Top Telemetry Header Bar
+                        TopTelemetryHeader(
+                            stats = stats,
+                            isBoosting = isBoosting,
+                            onBoost = { viewModel.triggerQuickBoost() },
+                            accentColor = accent
+                        )
+
+                        // Active Tab Screen View
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        ) {
+                            AnimatedContent(
+                                targetState = currentTab,
+                                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                                label = "tab_transition"
+                            ) { tab ->
+                                when (tab) {
+                                    NavigationTab.DASHBOARD -> DashboardScreen(viewModel = viewModel)
+                                    NavigationTab.PERFORMANCE -> PerformanceScreen(viewModel = viewModel)
+                                    NavigationTab.AI_ASSISTANT -> AiAssistantScreen(viewModel = viewModel)
+                                    NavigationTab.AI_ANALYZER -> AiGameAnalyzerScreen(viewModel = viewModel)
+                                    NavigationTab.NETWORK -> NetworkToolsScreen(viewModel = viewModel)
+                                    NavigationTab.TOOLS -> GamingToolsScreen(viewModel = viewModel)
+                                    NavigationTab.LIBRARY -> GameLibraryScreen(viewModel = viewModel)
+                                    NavigationTab.SETTINGS -> SettingsScreen(viewModel = viewModel)
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // Slide-out Floating Overlay HUD
-            FloatingOverlayHud(
-                viewModel = viewModel,
-                modifier = Modifier.align(Alignment.CenterStart)
-            )
+                // Slide-out Floating Overlay HUD
+                FloatingOverlayHud(
+                    viewModel = viewModel,
+                    modifier = Modifier.align(Alignment.CenterStart)
+                )
+            }
         }
     }
 }
