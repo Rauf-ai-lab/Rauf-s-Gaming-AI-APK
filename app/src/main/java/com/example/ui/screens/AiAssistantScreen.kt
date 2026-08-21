@@ -1,9 +1,13 @@
 package com.example.ui.screens
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -14,6 +18,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,18 +42,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.ElectricBolt
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -66,8 +71,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -75,9 +80,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.R
 import com.example.data.local.ChatMessage
 import com.example.data.remote.AiConnectionStatus
+import com.example.engine.VoiceState
 import com.example.ui.components.AudioVisualizerBar
 import com.example.ui.components.GlassCard
 import com.example.ui.theme.DarkSurfaceElevated
@@ -101,13 +108,45 @@ fun AiAssistantScreen(
     val isGenerating by viewModel.isAiGenerating.collectAsState()
     val activeGame by viewModel.activeGame.collectAsState()
     val aiStatus by viewModel.aiStatus.collectAsState()
-    val aiStatusDetails by viewModel.aiStatusDetails.collectAsState()
     val isSpeaking by viewModel.voiceEngine.isSpeaking.collectAsState()
+    val isListening by viewModel.voiceEngine.isListening.collectAsState()
+    val voiceAmplitude by viewModel.voiceEngine.speechAmplitude.collectAsState()
+    val voiceState by viewModel.voiceEngine.voiceState.collectAsState()
+    val voiceLang by viewModel.voiceLanguage.collectAsState()
+    val speechSpeed by viewModel.speechSpeed.collectAsState()
+    val autoSpeak by viewModel.autoSpeakResponse.collectAsState()
+
     val accent = LocalTurboAccent.current
     val context = LocalContext.current
 
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+
+    // Audio Permission Launcher
+    var hasAudioPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasAudioPermission = granted
+        if (granted) {
+            viewModel.startVoiceInput()
+        } else {
+            Toast.makeText(context, "Microphone permission is required for voice assistant", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun requestVoice(isPtt: Boolean = false) {
+        if (hasAudioPermission) {
+            viewModel.startVoiceInput(isPtt)
+        } else {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
 
     // Chakra aura pulsing animation
     val infiniteTransition = rememberInfiniteTransition(label = "chakra_avatar_pulse")
@@ -115,7 +154,7 @@ fun AiAssistantScreen(
         initialValue = 1.0f,
         targetValue = 1.15f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = if (isGenerating || isSpeaking) 600 else 1800, easing = LinearEasing),
+            animation = tween(durationMillis = if (isGenerating || isSpeaking || isListening) 600 else 1800, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "avatar_glow"
@@ -129,28 +168,28 @@ fun AiAssistantScreen(
     }
 
     val quickPrompts = listOf(
-        "🦊 Nine-Tails Mode: Extreme FPS calibration for $activeGame",
-        "🎯 Best drag headshot sensitivity & DPI settings",
+        "🦊 Sage Mode: Calibrate extreme 120 FPS graphics for $activeGame",
+        "🎯 Drag Headshot: Optimal sensitivity, DPI & fire button size",
         "⚡ Chidori Speed: Fix frame drops & thermal throttling",
-        "🌀 Rasengan: Clear RAM background cache & boost CPU",
-        "⚔️ 4-Finger Claw HUD layout & quick switch setup",
+        "📶 Ping Fix: 5GHz DNS packet routing for low latency",
+        "⚔️ 4-Finger Claw: HUD button placement & jump-shot timing",
         "🗣️ Give pro esports advice in Hinglish"
     )
 
     Row(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Left Column: Chat History & Input
+        // Left Column: Chat History & Interactive Voice + Text Bar
         Column(
             modifier = Modifier
-                .weight(1.35f)
+                .weight(1.3f)
                 .fillMaxHeight(),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Header Bar with Anime Avatar & AI Status
+            // Header Bar with Anime Avatar, Live Mic Status & Actions
             GlassCard(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -164,13 +203,12 @@ fun AiAssistantScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Anime Ninja Avatar with Chakra Glow Ring
                         Box(
                             modifier = Modifier
                                 .size(34.dp)
-                                .scale(if (isGenerating || isSpeaking) avatarGlowScale else 1.0f)
+                                .scale(if (isGenerating || isSpeaking || isListening) avatarGlowScale else 1.0f)
                                 .clip(CircleShape)
-                                .border(1.5.dp, if (isGenerating) StatusExtreme else accent, CircleShape),
+                                .border(1.5.dp, if (isListening) StatusExtreme else if (isGenerating) Color(0xFFFF9800) else accent, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
@@ -186,7 +224,7 @@ fun AiAssistantScreen(
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "SHINOBI NEURAL COPILOT",
+                                    text = "SHINOBI REAL-TIME VOICE AI",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         color = accent,
                                         fontWeight = FontWeight.Black,
@@ -196,13 +234,27 @@ fun AiAssistantScreen(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Box(
                                     modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(if (aiStatus == AiConnectionStatus.ONLINE) StatusOptimal else Color(0xFF38BDF8))
-                                )
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(if (isListening) StatusExtreme else if (aiStatus == AiConnectionStatus.ONLINE) StatusOptimal else Color(0xFF38BDF8))
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = when {
+                                            isListening -> "● LISTENING"
+                                            isGenerating -> "THINKING"
+                                            isSpeaking -> "SPEAKING"
+                                            else -> "ONLINE"
+                                        },
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = Color.Black,
+                                            fontSize = 7.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    )
+                                }
                             }
                             Text(
-                                text = if (aiStatus == AiConnectionStatus.ONLINE) "Gemini Flash • Nine-Tails Chakra Active" else "Offline Neural Engine • Ready",
+                                text = "Profile: $activeGame • Voice: $voiceLang",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     color = TextSecondary,
                                     fontSize = 8.5.sp
@@ -213,7 +265,7 @@ fun AiAssistantScreen(
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (isSpeaking) {
-                            AudioVisualizerBar(isActive = true, color = accent, barCount = 6)
+                            AudioVisualizerBar(isActive = true, color = accent, barCount = 8)
                             Spacer(modifier = Modifier.width(4.dp))
                             IconButton(
                                 onClick = { viewModel.stopSpeaking() },
@@ -226,6 +278,22 @@ fun AiAssistantScreen(
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
+                        }
+
+                        // New Conversation button
+                        IconButton(
+                            onClick = {
+                                viewModel.clearChatHistory()
+                                Toast.makeText(context, "New Conversation Started", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.size(26.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "New Conversation",
+                                tint = accent,
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
 
                         IconButton(
@@ -243,7 +311,7 @@ fun AiAssistantScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             // Chat Messages Container
             Box(
@@ -255,13 +323,13 @@ fun AiAssistantScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(12.dp),
+                            .padding(10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(54.dp)
+                                .size(50.dp)
                                 .clip(CircleShape)
                                 .border(2.dp, accent, CircleShape),
                             contentAlignment = Alignment.Center
@@ -273,22 +341,22 @@ fun AiAssistantScreen(
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "NINE-TAILS CHAKRA GAMING ASSISTANT",
+                            text = "GEMINI FLASH GAMING VOICE ASSISTANT",
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Black,
                                 color = accent,
-                                fontSize = 13.sp
+                                fontSize = 12.sp
                             )
                         )
                         Text(
-                            text = "Calibrated for $activeGame • Ask for custom drag sensitivities, FPS uncap configurations, or esports game rotations.",
+                            text = "Active for $activeGame. Tap the 🎙️ microphone to talk or hold to speak. Ask about drag sensitivity, FPS stabilization, or 4-finger claw rotation.",
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 color = TextSecondary,
-                                fontSize = 10.sp
+                                fontSize = 9.5.sp
                             ),
-                            modifier = Modifier.padding(horizontal = 20.dp)
+                            modifier = Modifier.padding(horizontal = 24.dp)
                         )
                     }
                 } else {
@@ -340,17 +408,17 @@ fun AiAssistantScreen(
                 items(quickPrompts) { prompt ->
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(8.dp))
                             .background(DarkSurfaceElevated)
-                            .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                            .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
                             .clickable { viewModel.sendChatMessage(prompt, "Quick") }
-                            .padding(horizontal = 9.dp, vertical = 4.dp)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = prompt,
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = TextPrimary,
-                                fontSize = 9.5.sp
+                                fontSize = 9.sp
                             )
                         )
                     }
@@ -359,18 +427,91 @@ fun AiAssistantScreen(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Input Bar
+            // Interactive Voice & Text Input Bar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                // Large 🎙️ ASK AI Voice Button
+                Button(
+                    onClick = {
+                        if (isListening) {
+                            viewModel.stopVoiceInput()
+                        } else {
+                            requestVoice(isPtt = false)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isListening) StatusExtreme else accent,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .height(42.dp)
+                        .testTag("ai_screen_ask_voice_button")
+                ) {
+                    Icon(
+                        imageVector = if (isListening) Icons.Default.Stop else Icons.Default.Mic,
+                        contentDescription = "Voice",
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isListening) "LISTENING..." else "🎙️ ASK AI",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+
+                // Push-To-Talk Button
+                Box(
+                    modifier = Modifier
+                        .height(42.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isListening) accent.copy(alpha = 0.25f) else DarkSurfaceElevated)
+                        .border(1.dp, if (isListening) accent else Color(0x444A628A), RoundedCornerShape(10.dp))
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onPress = {
+                                    requestVoice(isPtt = true)
+                                    tryAwaitRelease()
+                                    viewModel.stopVoiceInput()
+                                }
+                            )
+                        }
+                        .padding(horizontal = 10.dp)
+                        .testTag("ai_screen_ptt_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.GraphicEq,
+                            contentDescription = "PTT",
+                            tint = if (isListening) accent else TextSecondary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "HOLD TALK",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = if (isListening) accent else TextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.5.sp
+                            )
+                        )
+                    }
+                }
+
+                // Text input field
                 OutlinedTextField(
                     value = inputText,
                     onValueChange = { inputText = it },
                     placeholder = {
                         Text(
-                            text = "Ask for sensitivity, FPS optimization, or ninja tactics...",
+                            text = "Type or talk to Gemini AI...",
                             style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp, color = TextMuted)
                         )
                     },
@@ -426,25 +567,120 @@ fun AiAssistantScreen(
             }
         }
 
-        // Right Column: Chakra Tactical Jutsu Cards & Engine Specs
+        // Right Column: Voice Assistant Settings & Chakra Tactical Presets
         Column(
             modifier = Modifier
-                .weight(0.7f)
+                .weight(0.75f)
                 .fillMaxHeight(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // Voice Settings Glass Card
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "VOICE ENGINE SETTINGS",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = accent,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 9.5.sp
+                        )
+                    )
+
+                    // Language Selector Chips
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val languages = listOf("English", "Hindi", "Hinglish")
+                        languages.forEach { lang ->
+                            val isSel = voiceLang.equals(lang, ignoreCase = true)
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (isSel) accent.copy(alpha = 0.25f) else DarkSurfaceElevated)
+                                    .border(1.dp, if (isSel) accent else Color.Transparent, RoundedCornerShape(6.dp))
+                                    .clickable { viewModel.setVoiceLanguage(lang) }
+                                    .padding(vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = lang,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = if (isSel) accent else TextSecondary,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 8.5.sp
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    // Auto Speak Toggle Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(DarkSurfaceElevated)
+                            .clickable { viewModel.toggleAutoSpeak() }
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Auto-Speak Response",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp, color = TextPrimary)
+                        )
+                        Text(
+                            text = if (autoSpeak) "ON" else "OFF",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = if (autoSpeak) StatusOptimal else TextMuted,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.sp
+                            )
+                        )
+                    }
+
+                    // Hands-Free Mode Toggle Row
+                    val handsFree by viewModel.handsFreeModeEnabled.collectAsState()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(DarkSurfaceElevated)
+                            .clickable { viewModel.toggleHandsFreeMode() }
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Hands-Free Mode",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 9.sp, color = TextPrimary)
+                        )
+                        Text(
+                            text = if (handsFree) "ON" else "OFF",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = if (handsFree) StatusOptimal else TextMuted,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.sp
+                            )
+                        )
+                    }
+                }
+            }
+
             // Anime Chakra Tactical Presets Card
             GlassCard(modifier = Modifier.fillMaxWidth(), glowAccent = true) {
-                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.LocalFireDepartment, "Chakra", tint = Color(0xFFFF5722), modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(Icons.Default.LocalFireDepartment, "Chakra", tint = Color(0xFFFF5722), modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "CHAKRA JUTSU PRESETS",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 color = accent,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp
+                                fontSize = 9.5.sp
                             )
                         )
                     }
@@ -478,24 +714,6 @@ fun AiAssistantScreen(
                     )
                 }
             }
-
-            // Specs Glass Card
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "NEURAL SPECS",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            color = TextMuted,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 9.5.sp
-                        )
-                    )
-                    AiCapabilityRow("AI Engine", "Gemini Flash")
-                    AiCapabilityRow("Profile Target", activeGame)
-                    AiCapabilityRow("Voice", viewModel.preferencesManager.voiceLanguage)
-                    AiCapabilityRow("Telemetry", "Active 60-120Hz")
-                }
-            }
         }
     }
 }
@@ -514,7 +732,7 @@ fun ChakraPresetButton(
             .background(DarkSurfaceElevated)
             .border(1.dp, Color(0x334A628A), RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .padding(horizontal = 8.dp, vertical = 5.dp)
     ) {
         Column {
             Text(
@@ -522,14 +740,14 @@ fun ChakraPresetButton(
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary,
-                    fontSize = 10.5.sp
+                    fontSize = 10.sp
                 )
             )
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall.copy(
                     color = TextSecondary,
-                    fontSize = 8.5.sp
+                    fontSize = 8.sp
                 )
             )
         }
@@ -625,31 +843,5 @@ fun ChatMessageBubble(
                 )
             }
         }
-    }
-}
-
-@Composable
-fun AiCapabilityRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 1.5.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontSize = 9.sp,
-                color = TextMuted
-            )
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 9.5.sp,
-                color = TextPrimary,
-                fontWeight = FontWeight.SemiBold
-            )
-        )
     }
 }

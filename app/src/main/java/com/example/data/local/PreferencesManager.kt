@@ -24,12 +24,28 @@ class PreferencesManager(context: Context) {
         set(value) = prefs.edit().putString("custom_api_key", value).apply()
 
     var voiceLanguage: String
-        get() = prefs.getString("voice_lang", "English") ?: "English" // English, Hindi, Hinglish
+        get() = prefs.getString("voice_lang", "English") ?: "English" // English, Hindi, Hinglish, Auto Detect
         set(value) = prefs.edit().putString("voice_lang", value).apply()
 
     var speechSpeed: Float
         get() = prefs.getFloat("speech_speed", 1.05f)
         set(value) = prefs.edit().putFloat("speech_speed", value).apply()
+
+    var autoSpeakResponse: Boolean
+        get() = prefs.getBoolean("auto_speak_response", true)
+        set(value) = prefs.edit().putBoolean("auto_speak_response", value).apply()
+
+    var pushToTalkEnabled: Boolean
+        get() = prefs.getBoolean("push_to_talk_enabled", false)
+        set(value) = prefs.edit().putBoolean("push_to_talk_enabled", value).apply()
+
+    var handsFreeModeEnabled: Boolean
+        get() = prefs.getBoolean("hands_free_mode_enabled", false)
+        set(value) = prefs.edit().putBoolean("hands_free_mode_enabled", value).apply()
+
+    var voiceHistoryEnabled: Boolean
+        get() = prefs.getBoolean("voice_history_enabled", true)
+        set(value) = prefs.edit().putBoolean("voice_history_enabled", value).apply()
 
     var isFloatingOverlayEnabled: Boolean
         get() = prefs.getBoolean("floating_overlay_enabled", true)

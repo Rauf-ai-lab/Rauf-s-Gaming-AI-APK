@@ -129,6 +129,28 @@ class GameTurboViewModel(application: Application) : AndroidViewModel(applicatio
     private val _isAiGenerating = MutableStateFlow(false)
     val isAiGenerating: StateFlow<Boolean> = _isAiGenerating.asStateFlow()
 
+    // Voice Assistant Preferences States
+    private val _autoSpeakResponse = MutableStateFlow(preferencesManager.autoSpeakResponse)
+    val autoSpeakResponse: StateFlow<Boolean> = _autoSpeakResponse.asStateFlow()
+
+    private val _pushToTalkEnabled = MutableStateFlow(preferencesManager.pushToTalkEnabled)
+    val pushToTalkEnabled: StateFlow<Boolean> = _pushToTalkEnabled.asStateFlow()
+
+    private val _handsFreeModeEnabled = MutableStateFlow(preferencesManager.handsFreeModeEnabled)
+    val handsFreeModeEnabled: StateFlow<Boolean> = _handsFreeModeEnabled.asStateFlow()
+
+    private val _voiceHistoryEnabled = MutableStateFlow(preferencesManager.voiceHistoryEnabled)
+    val voiceHistoryEnabled: StateFlow<Boolean> = _voiceHistoryEnabled.asStateFlow()
+
+    private val _voiceLanguage = MutableStateFlow(preferencesManager.voiceLanguage)
+    val voiceLanguage: StateFlow<String> = _voiceLanguage.asStateFlow()
+
+    private val _speechSpeed = MutableStateFlow(preferencesManager.speechSpeed)
+    val speechSpeed: StateFlow<Float> = _speechSpeed.asStateFlow()
+
+    private val _lastRecognizedSpeech = MutableStateFlow("")
+    val lastRecognizedSpeech: StateFlow<String> = _lastRecognizedSpeech.asStateFlow()
+
     // AI Game Analyzer State
     private val _analyzerInput = MutableStateFlow(AiAnalyzerInput())
     val analyzerInput: StateFlow<AiAnalyzerInput> = _analyzerInput.asStateFlow()
@@ -314,19 +336,111 @@ class GameTurboViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun sendChatMessage(promptText: String, category: String = "General") {
+    fun startVoiceInput(isPushToTalk: Boolean = false) {
+        triggerHaptic()
+        voiceEngine.stopSpeaking()
+        val lang = _voiceLanguage.value
+
+        voiceEngine.startListening(
+            language = lang,
+            onPartial = { partial ->
+                _lastRecognizedSpeech.value = partial
+            },
+            onError = { error ->
+                _lastRecognizedSpeech.value = ""
+                voiceEngine.setVoiceState(com.example.engine.VoiceState.ERROR)
+            },
+            onResult = { resultText ->
+                _lastRecognizedSpeech.value = resultText
+                handleRecognizedVoiceCommand(resultText)
+            }
+        )
+    }
+
+    fun stopVoiceInput() {
+        voiceEngine.stopListening()
+    }
+
+    fun cancelVoiceInput() {
+        voiceEngine.cancelListening()
+        _lastRecognizedSpeech.value = ""
+    }
+
+    private fun handleRecognizedVoiceCommand(spokenText: String) {
+        if (spokenText.isBlank()) return
+        val lower = spokenText.lowercase().trim()
+
+        // Check for gaming voice action triggers
+        val executedDirectAction = when {
+            lower.contains("optimize") || lower.contains("boost") || lower.contains("speed up") -> {
+                triggerQuickBoost()
+                "🚀 Game Turbo boost engaged! Memory cleaned and CPU cores optimized."
+            }
+            lower.contains("library") || lower.contains("open game") || lower.contains("my games") -> {
+                selectTab(NavigationTab.LIBRARY)
+                "Opening Game Library."
+            }
+            lower.contains("dashboard") || lower.contains("home") -> {
+                selectTab(NavigationTab.DASHBOARD)
+                "Switching to Game Turbo Dashboard."
+            }
+            lower.contains("performance") || lower.contains("monitor") || lower.contains("fps stats") -> {
+                selectTab(NavigationTab.PERFORMANCE)
+                "Opening Real-time Performance Telemetry."
+            }
+            lower.contains("network") || lower.contains("ping tool") || lower.contains("dns") -> {
+                selectTab(NavigationTab.NETWORK)
+                "Opening Low-Latency Network Tools."
+            }
+            lower.contains("analyzer") || lower.contains("sensitivity") || lower.contains("sensi") -> {
+                selectTab(NavigationTab.AI_ANALYZER)
+                runAiGameAnalysis()
+                "Calibrating pro sensitivity for ${_activeGame.value}."
+            }
+            lower.contains("do not disturb on") || lower.contains("turn on dnd") || lower.contains("enable dnd") -> {
+                if (!_isDndActive.value) toggleDnd()
+                "Gaming Do Not Disturb mode activated."
+            }
+            lower.contains("do not disturb off") || lower.contains("turn off dnd") || lower.contains("disable dnd") -> {
+                if (_isDndActive.value) toggleDnd()
+                "Gaming Do Not Disturb mode disabled."
+            }
+            lower.contains("extreme mode") || lower.contains("sage mode") || lower.contains("120 fps") -> {
+                setPerformanceMode("Extreme")
+                "Sage Mode Extreme 120 FPS engaged."
+            }
+            lower.contains("balanced mode") -> {
+                setPerformanceMode("Balanced")
+                "Balanced Mode engaged."
+            }
+            else -> null
+        }
+
+        // Send to Gemini AI for complete gamer assistant response
+        sendChatMessage(spokenText, category = "Voice", isVoiceTriggered = true, directActionSpeech = executedDirectAction)
+    }
+
+    fun sendChatMessage(
+        promptText: String,
+        category: String = "General",
+        isVoiceTriggered: Boolean = false,
+        directActionSpeech: String? = null
+    ) {
         if (promptText.isBlank() || _isAiGenerating.value) return
         val userPrompt = promptText.trim()
 
         viewModelScope.launch {
-            gamingRepository.saveChatMessage(
-                sender = "user",
-                message = userPrompt,
-                category = category
-            )
+            if (_voiceHistoryEnabled.value) {
+                gamingRepository.saveChatMessage(
+                    sender = "user",
+                    message = userPrompt,
+                    category = category
+                )
+            }
 
             _isAiGenerating.value = true
             _streamingAiResponse.value = ""
+            voiceEngine.setVoiceState(com.example.engine.VoiceState.THINKING)
             triggerHaptic()
 
             val history = chatMessages.value.takeLast(6).map {
@@ -347,11 +461,27 @@ class GameTurboViewModel(application: Application) : AndroidViewModel(applicatio
 
                 val finalOutput = fullResponseBuilder.toString()
                 if (finalOutput.isNotBlank()) {
-                    gamingRepository.saveChatMessage(
-                        sender = "ai",
-                        message = finalOutput,
-                        category = category
-                    )
+                    if (_voiceHistoryEnabled.value) {
+                        gamingRepository.saveChatMessage(
+                            sender = "ai",
+                            message = finalOutput,
+                            category = category
+                        )
+                    }
+
+                    // If auto-speak is enabled, speak the answer
+                    if (_autoSpeakResponse.value || isVoiceTriggered) {
+                        val speechToPlay = if (directActionSpeech != null) {
+                            "$directActionSpeech $finalOutput"
+                        } else {
+                            finalOutput
+                        }
+                        speakAiMessage(speechToPlay)
+                    } else {
+                        voiceEngine.setVoiceState(com.example.engine.VoiceState.IDLE)
+                    }
+                } else {
+                    voiceEngine.setVoiceState(com.example.engine.VoiceState.IDLE)
                 }
                 _streamingAiResponse.value = ""
                 _isAiGenerating.value = false
@@ -361,8 +491,9 @@ class GameTurboViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun stopAiGeneration() {
         streamingJob?.cancel()
+        voiceEngine.stopSpeaking()
         val currentChunk = _streamingAiResponse.value
-        if (currentChunk.isNotBlank()) {
+        if (currentChunk.isNotBlank() && _voiceHistoryEnabled.value) {
             viewModelScope.launch {
                 gamingRepository.saveChatMessage(
                     sender = "ai",
@@ -373,6 +504,7 @@ class GameTurboViewModel(application: Application) : AndroidViewModel(applicatio
         }
         _streamingAiResponse.value = ""
         _isAiGenerating.value = false
+        voiceEngine.setVoiceState(com.example.engine.VoiceState.IDLE)
         triggerHaptic()
     }
 
@@ -384,8 +516,8 @@ class GameTurboViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun speakAiMessage(text: String) {
-        val lang = preferencesManager.voiceLanguage
-        val speed = preferencesManager.speechSpeed
+        val lang = _voiceLanguage.value
+        val speed = _speechSpeed.value
         voiceEngine.speak(text, lang, speed)
         triggerHaptic()
     }
@@ -393,6 +525,45 @@ class GameTurboViewModel(application: Application) : AndroidViewModel(applicatio
     fun stopSpeaking() {
         voiceEngine.stopSpeaking()
         triggerHaptic()
+    }
+
+    fun toggleAutoSpeak() {
+        val next = !_autoSpeakResponse.value
+        _autoSpeakResponse.value = next
+        preferencesManager.autoSpeakResponse = next
+        triggerHaptic()
+    }
+
+    fun togglePushToTalk() {
+        val next = !_pushToTalkEnabled.value
+        _pushToTalkEnabled.value = next
+        preferencesManager.pushToTalkEnabled = next
+        triggerHaptic()
+    }
+
+    fun toggleHandsFreeMode() {
+        val next = !_handsFreeModeEnabled.value
+        _handsFreeModeEnabled.value = next
+        preferencesManager.handsFreeModeEnabled = next
+        triggerHaptic()
+    }
+
+    fun toggleVoiceHistory() {
+        val next = !_voiceHistoryEnabled.value
+        _voiceHistoryEnabled.value = next
+        preferencesManager.voiceHistoryEnabled = next
+        triggerHaptic()
+    }
+
+    fun setVoiceLanguage(lang: String) {
+        preferencesManager.voiceLanguage = lang
+        _voiceLanguage.value = lang
+        triggerHaptic()
+    }
+
+    fun setSpeechSpeed(speed: Float) {
+        preferencesManager.speechSpeed = speed
+        _speechSpeed.value = speed
     }
 
     fun updateAnalyzerInput(transform: (AiAnalyzerInput) -> AiAnalyzerInput) {
@@ -580,15 +751,6 @@ class GameTurboViewModel(application: Application) : AndroidViewModel(applicatio
         preferencesManager.customApiKey = key
         checkAiStatus()
         triggerHaptic()
-    }
-
-    fun setVoiceLanguage(lang: String) {
-        preferencesManager.voiceLanguage = lang
-        triggerHaptic()
-    }
-
-    fun setSpeechSpeed(speed: Float) {
-        preferencesManager.speechSpeed = speed
     }
 
     private fun triggerHaptic() {
